@@ -1,5 +1,9 @@
 -- Normalized schema: proper tables instead of single jsonb.
 -- Run this first. If you have existing data in public.sessions, run migrate-from-sessions.sql next.
+--
+-- To avoid "email not confirmed": in Dashboard go to Authentication → Providers → Email,
+-- scroll down and turn OFF "Confirm email". If the option is missing, run
+-- supabase/confirm-email-users.sql once to confirm existing users.
 
 -- 1. User state (balance, timestamps)
 create table if not exists public.user_state (

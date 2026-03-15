@@ -15,12 +15,19 @@ export function AuthForm() {
     e.preventDefault();
     setMessage(null);
     setBusy(true);
-    const { error } = isSignUp
+    const result = isSignUp
       ? await signUp(email, password)
       : await signIn(email, password);
     setBusy(false);
+    const error = "error" in result ? result.error : null;
     if (error) {
-      setMessage({ type: "err", text: error.message });
+      const isUnconfirmed = /not confirmed|confirm your email/i.test(error.message);
+      setMessage({
+        type: "err",
+        text: isUnconfirmed
+          ? "Email not confirmed. In Supabase Dashboard → SQL Editor, run the query in supabase/confirm-email-users.sql, then sign in again."
+          : error.message,
+      });
       return;
     }
     if (isSignUp) {
