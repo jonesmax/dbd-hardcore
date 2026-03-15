@@ -53,7 +53,7 @@ function logEntryFromRow(row: Record<string, unknown>): LogEntry {
     kind: row.kind as LogEntry["kind"],
     timestamp: (row.timestamp as string).replace("Z", "Z"),
     balanceAfter: row.balance_after as number,
-    payload: payload as LogEntry["payload"],
+    payload: payload as unknown as LogEntry["payload"],
   };
 }
 
