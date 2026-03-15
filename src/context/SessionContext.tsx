@@ -3,7 +3,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import type { Session } from "@/types";
 import { DEFAULT_SETTINGS } from "@/types";
-import { getInitialSession, exportSessionToJson, importSessionFromJson, resetProgress as resetProgressSession, resetSettings as resetSettingsSession } from "@/lib/session";
+import { getInitialSession, ensureSessionComplete, resetProgress as resetProgressSession, resetSettings as resetSettingsSession } from "@/lib/session";
 import { processMatch, unlockKiller, revertMatch, deleteMatch as deleteMatchSession, editMatch as editMatchSession, getSessionGenStats, getMatchHistory } from "@/lib/gameLogic";
 import { loadSession, saveSession } from "@/lib/sessionDb";
 import { useAuth } from "@/context/AuthContext";
@@ -19,8 +19,6 @@ interface SessionContextValue {
   reset: () => void;
   resetProgress: () => void;
   resetSettings: () => void;
-  exportJson: () => string;
-  importJson: (json: string) => boolean;
 }
 
 const SessionContext = createContext<SessionContextValue | null>(null);
@@ -35,7 +33,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     let cancelled = false;
     loadSession(userId).then((loaded) => {
       if (cancelled) return;
-      setSessionState(loaded ? (loaded.settings ? loaded : { ...loaded, settings: DEFAULT_SETTINGS }) : getInitialSession());
+      const withSettings = loaded ? (loaded.settings ? loaded : { ...loaded, settings: DEFAULT_SETTINGS }) : null;
+      setSessionState(withSettings ? ensureSessionComplete(withSettings) : getInitialSession());
     }).catch(() => {});
     return () => { cancelled = true; };
   }, [userId]);
@@ -72,10 +71,12 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     setSessionState((prev) => {
       const matches = getMatchHistory(prev);
       if (matches.length === 0) return prev;
-      return revertMatch(prev, matches[0]);
+      const next = revertMatch(prev, matches[0]);
+      if (next !== prev) saveSession(userId, next).catch(() => {});
+      return next;
     });
     return true;
-  }, []);
+  }, [userId]);
 
   const deleteMatch = useCallback((matchId: string): boolean => {
     setSessionState((prev) => deleteMatchSession(prev, matchId) ?? prev);
@@ -113,17 +114,6 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     });
   }, [userId]);
 
-  const exportJson = useCallback(() => exportSessionToJson(session), [session]);
-  const importJson = useCallback((json: string) => {
-    const next = importSessionFromJson(json);
-    if (next) {
-      setSessionState(next);
-      saveSession(userId, next).catch(() => {});
-      return true;
-    }
-    return false;
-  }, [userId]);
-
   const value: SessionContextValue = {
     session,
     setSession,
@@ -135,8 +125,6 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     reset,
     resetProgress,
     resetSettings,
-    exportJson,
-    importJson,
   };
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;

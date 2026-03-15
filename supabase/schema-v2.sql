@@ -54,7 +54,14 @@ create table if not exists public.match_history (
 
 create index if not exists match_history_user_timestamp on public.match_history (user_id, "timestamp" desc);
 
--- 5. Session log (unlock + dead only; timeline uses match_history + session_log)
+-- 5. User profile (optional display name; unique across users)
+create table if not exists public.user_profiles (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  username text unique
+);
+create unique index if not exists user_profiles_username_lower on public.user_profiles (lower(username)) where username is not null;
+
+-- 6. Session log (unlock + dead only; timeline uses match_history + session_log)
 create table if not exists public.session_log (
   id text primary key,
   user_id uuid not null references auth.users(id) on delete cascade,
@@ -71,10 +78,23 @@ alter table public.user_state enable row level security;
 alter table public.user_settings enable row level security;
 alter table public.user_killers enable row level security;
 alter table public.match_history enable row level security;
+alter table public.user_profiles enable row level security;
 alter table public.session_log enable row level security;
+
+drop policy if exists "user_state_rw" on public.user_state;
+drop policy if exists "user_settings_rw" on public.user_settings;
+drop policy if exists "user_killers_rw" on public.user_killers;
+drop policy if exists "match_history_rw" on public.match_history;
+drop policy if exists "user_profiles_select" on public.user_profiles;
+drop policy if exists "user_profiles_insert" on public.user_profiles;
+drop policy if exists "user_profiles_update" on public.user_profiles;
+drop policy if exists "session_log_rw" on public.session_log;
 
 create policy "user_state_rw" on public.user_state for all to authenticated using (auth.uid() = user_id) with check (auth.uid() = user_id);
 create policy "user_settings_rw" on public.user_settings for all to authenticated using (auth.uid() = user_id) with check (auth.uid() = user_id);
 create policy "user_killers_rw" on public.user_killers for all to authenticated using (auth.uid() = user_id) with check (auth.uid() = user_id);
 create policy "match_history_rw" on public.match_history for all to authenticated using (auth.uid() = user_id) with check (auth.uid() = user_id);
+create policy "user_profiles_select" on public.user_profiles for select to authenticated using (true);
+create policy "user_profiles_insert" on public.user_profiles for insert to authenticated with check (auth.uid() = user_id);
+create policy "user_profiles_update" on public.user_profiles for update to authenticated using (auth.uid() = user_id) with check (auth.uid() = user_id);
 create policy "session_log_rw" on public.session_log for all to authenticated using (auth.uid() = user_id) with check (auth.uid() = user_id);

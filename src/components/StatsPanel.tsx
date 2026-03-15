@@ -12,7 +12,6 @@ export function StatsPanel() {
   const wins = matchHistory.filter((m) => m.result === "Win").length;
   const neutrals = matchHistory.filter((m) => m.result === "Neutral").length;
   const losses = matchHistory.filter((m) => m.result === "Loss").length;
-  const unlockedCount = session.killers.filter((k) => k.status === "Unlocked").length;
   const genStats = getSessionGenStats(session);
 
   const avgKills = totalMatches > 0 ? (totalKills / totalMatches).toFixed(1) : "—";
@@ -28,7 +27,6 @@ export function StatsPanel() {
       <StatCard label="Wins" value={wins} className="text-[var(--success)]" />
       <StatCard label="Neutrals" value={neutrals} className="text-[var(--warn)]" />
       <StatCard label="Losses" value={losses} className="text-[var(--danger)]" />
-      <StatCard label="Unlocked killers" value={`${unlockedCount}/${session.killers.length}`} />
       <StatCard label="Avg gens standing" value={avgGens} />
     </div>
   );

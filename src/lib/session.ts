@@ -78,6 +78,14 @@ export function getInitialSession(): Session {
   };
 }
 
+/** Ensure loaded session has killers and settings (e.g. after load from DB when tables were empty). */
+export function ensureSessionComplete(session: Session): Session {
+  const settings = session.settings ?? DEFAULT_SETTINGS;
+  const hasKillers = Array.isArray(session.killers) && session.killers.length > 0;
+  if (hasKillers) return { ...session, settings };
+  return { ...session, settings, killers: buildInitialKillers(settings) };
+}
+
 /** Empty run with given settings (for replay after delete). */
 export function getEmptyRun(settings: Settings): Omit<Session, "createdAt" | "updatedAt" | "wonAt"> {
   return {

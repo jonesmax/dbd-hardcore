@@ -31,7 +31,7 @@ function applyOverridesToKillers(killers: KillerState[], settings: Settings): Ki
 }
 
 export function SettingsModal({ onClose }: SettingsModalProps) {
-  const { session, setSession, reset, resetProgress, resetSettings } = useSession();
+  const { session, setSession, resetProgress, resetSettings } = useSession();
   const [form, setForm] = useState<Settings>(session.settings ?? DEFAULT_SETTINGS);
 
   useEffect(() => {
@@ -86,9 +86,19 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
         className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl border-2 border-[var(--border)] bg-[var(--surface)] shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="sticky top-0 z-10 border-b border-[var(--border)] bg-[var(--surface)] px-4 py-3">
-          <h2 className="text-lg font-bold text-[var(--foreground)]">Settings</h2>
-          <p className="text-xs text-[var(--muted)]">Saved to session; export JSON to backup.</p>
+        <div className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-[var(--border)] bg-[var(--surface)] px-4 py-3">
+          <div>
+            <h2 className="text-lg font-bold text-[var(--foreground)]">Settings</h2>
+            <p className="text-xs text-[var(--muted)]">Game rules, tokens, and resets.</p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="shrink-0 rounded-lg p-2 text-[var(--muted)] hover:bg-[var(--surface-hover)] hover:text-[var(--foreground)]"
+            aria-label="Close"
+          >
+            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+          </button>
         </div>
         <form onSubmit={handleSubmit} className="p-4 space-y-6">
           <section>

@@ -43,6 +43,27 @@ body {
   font-family: var(--font-sans), system-ui, sans-serif;
 }
 
+/* Focus rings */
+input:focus-visible,
+button:focus-visible,
+select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Card and panel polish */
+.card-panel {
+  border-radius: 0.75rem;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+/* Stat/surface hover */
+.stat-card:hover {
+  background: var(--surface-hover);
+}
+
 .tier-s-plus { color: #ffd700; }
 .tier-s { color: #8957e5; }
 .tier-a { color: #cd7f32; }

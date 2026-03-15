@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { SessionProvider, useSession } from "@/context/SessionContext";
 import { KillerCard } from "@/components/KillerCard";
@@ -12,132 +12,111 @@ import { MatchTimeline } from "@/components/MatchTimeline";
 import { BalanceChart } from "@/components/BalanceChart";
 import { WinTracker } from "@/components/WinTracker";
 import { SettingsModal } from "@/components/SettingsModal";
+import { ProfileModal } from "@/components/ProfileModal";
 import { AuthForm } from "@/components/AuthForm";
 import { hasSupabase } from "@/lib/supabase";
-import { getMatchHistory } from "@/lib/gameLogic";
 import type { KillerState } from "@/types";
-import { TIER_ORDER, DEFAULT_SETTINGS, TIER_COLORS } from "@/types";
+import { TIER_ORDER, TIER_COLORS } from "@/types";
+
+type KillerFilter = "all" | "unlocked" | "locked";
 
 function Dashboard() {
-  const { user, signOut } = useAuth();
-  const { session, exportJson, importJson, undoLastMatch } = useSession();
+  const { user, profile, signOut } = useAuth();
+  const { session } = useSession();
   const [selectedKiller, setSelectedKiller] = useState<KillerState | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
   const [logMatchOpen, setLogMatchOpen] = useState(false);
   const [killerSearch, setKillerSearch] = useState("");
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const settings = session.settings ?? DEFAULT_SETTINGS;
+  const [killerFilter, setKillerFilter] = useState<KillerFilter>("all");
+  const [timelineOpen, setTimelineOpen] = useState(true);
 
   const killersByTier = useMemo(() => {
     const q = killerSearch.trim().toLowerCase();
-    const filtered = q
-      ? session.killers.filter(
-          (k) =>
-            k.name.toLowerCase().includes(q) || k.id.toLowerCase().includes(q)
-        )
-      : session.killers;
+    let filtered = session.killers;
+    if (q) {
+      filtered = filtered.filter(
+        (k) =>
+          k.name.toLowerCase().includes(q) || k.id.toLowerCase().includes(q)
+      );
+    }
+    if (killerFilter === "unlocked") filtered = filtered.filter((k) => k.status === "Unlocked");
+    else if (killerFilter === "locked") filtered = filtered.filter((k) => k.status === "Locked" || k.status === "Dead");
     const map = new Map<string, KillerState[]>();
     for (const tier of TIER_ORDER) {
       map.set(tier, filtered.filter((k) => k.tier === tier));
     }
     return map;
-  }, [session.killers, killerSearch]);
+  }, [session.killers, killerSearch, killerFilter]);
 
-  function handleExport() {
-    const blob = new Blob([exportJson()], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `dbd-economy-${new Date().toISOString().slice(0, 10)}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-  }
-
-  function handleImport(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      const text = reader.result as string;
-      if (importJson(text)) {
-        alert("Session imported.");
-      } else {
-        alert("Invalid JSON.");
-      }
-    };
-    reader.readAsText(file);
-    e.target.value = "";
-  }
+  const displayName = profile.username || user?.email?.split("@")[0] || "Player";
 
   return (
     <div className="min-h-screen bg-[var(--background)]">
-      <header className="border-b border-[var(--border)] bg-[var(--surface)] px-4 py-3">
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4">
-          <h1 className="text-xl font-bold text-[var(--foreground)]">
-            DBD Hardcore Killer Economy
+      <header className="sticky top-0 z-30 border-b border-[var(--border)] bg-[var(--surface)]/95 px-4 py-2.5 shadow-sm backdrop-blur">
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4">
+          <h1 className="shrink-0 text-lg font-bold tracking-tight text-[var(--foreground)] sm:text-xl">
+            DBD Killer Economy
           </h1>
-          <div className="flex items-center gap-2">
-            {user && (
-              <>
-                <span className="text-sm text-[var(--muted)] truncate max-w-[120px]" title={user.email}>{user.email}</span>
-                <button type="button" onClick={() => signOut()} className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm text-[var(--muted)] hover:bg-[var(--surface-hover)]">Sign out</button>
-              </>
-            )}
-            <button
-              type="button"
-              onClick={() => setLogMatchOpen(true)}
-              className="flex h-9 w-9 items-center justify-center rounded-lg bg-[var(--success)] text-lg font-bold text-white hover:opacity-90"
-              title="Log match"
-            >
-              +
-            </button>
-            <button
-              type="button"
-              onClick={() => undoLastMatch()}
-              disabled={getMatchHistory(session).length === 0}
-              className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm text-[var(--muted)] hover:bg-[var(--surface-hover)] disabled:opacity-50 disabled:cursor-not-allowed"
-              title="Undo last match"
-            >
-              Undo
-            </button>
-            <button
-              type="button"
-              onClick={handleExport}
-              className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm text-[var(--muted)] hover:bg-[var(--surface-hover)]"
-            >
-              Export JSON
-            </button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".json"
-              className="hidden"
-              onChange={handleImport}
-            />
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm text-[var(--muted)] hover:bg-[var(--surface-hover)]"
-            >
-              Import JSON
-            </button>
-            <button
-              type="button"
-              onClick={() => setSettingsOpen(true)}
-              className="rounded-lg border-2 border-[var(--accent)] bg-[var(--surface)] px-3 py-1.5 text-sm font-medium text-[var(--accent)] hover:bg-[var(--accent)] hover:text-white transition-colors"
-            >
-              ⚙ Settings
-            </button>
-            <BalanceDisplay />
+
+          <div className="flex min-w-0 flex-1 items-center justify-end">
+            <div className="flex h-10 items-stretch overflow-hidden rounded-xl border border-[var(--border)] bg-gradient-to-r from-[var(--surface)] to-[var(--surface-hover)]/50 shadow-inner ring-1 ring-black/5">
+              <div className="flex h-full items-center gap-1 border-r border-[var(--border)] px-2.5">
+                <span className="max-w-[100px] truncate text-sm font-medium text-[var(--foreground)]" title={user?.email ?? ""}>
+                  {displayName}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => signOut()}
+                  className="rounded-md p-1.5 text-[var(--muted)] transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--foreground)]"
+                  title="Sign out"
+                >
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+                </button>
+              </div>
+              <BalanceDisplay compact />
+              <div className="flex h-full items-center border-l border-[var(--border)]">
+                <button
+                  type="button"
+                  onClick={() => setProfileOpen(true)}
+                  className="h-full rounded-none border-r border-[var(--border)] px-2.5 text-[var(--muted)] transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--accent)]"
+                  title="Profile"
+                >
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSettingsOpen(true)}
+                  className="h-full rounded-none px-2.5 text-[var(--muted)] transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--accent)]"
+                  title="Settings"
+                >
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </header>
 
+      {!timelineOpen && (
+        <button
+          type="button"
+          onClick={() => setTimelineOpen(true)}
+          className="fixed z-40 rounded-lg border-2 border-[var(--accent)] bg-[var(--surface)] px-3 py-2 text-sm font-medium text-[var(--accent)] shadow-md hover:bg-[var(--accent)] hover:text-white"
+          style={{
+            top: "4.5rem",
+            right: "0.4rem",
+          }}
+          title="Open timeline"
+        >
+          Timeline
+        </button>
+      )}
+
       <main className="mx-auto flex max-w-6xl flex-col px-4 py-6 lg:flex-row lg:items-stretch lg:gap-6">
-        <div className="min-w-0 flex-1">
+        <div className={`min-w-0 flex-1 ${!timelineOpen ? "max-w-full" : ""}`}>
           <section className="mb-6">
-            <h2 className="mb-3 text-lg font-bold text-[var(--foreground)]">Your performance</h2>
+            <h2 className="mb-3 text-base font-bold text-[var(--foreground)]">Performance</h2>
             <div className="mb-4">
               <WinTracker />
             </div>
@@ -148,53 +127,84 @@ function Dashboard() {
           </section>
 
           <section>
-            <h2 className="mb-4 text-lg font-bold text-[var(--foreground)]">Killers</h2>
-            <div className="mb-3">
+            <div className="mb-4 flex flex-wrap items-center gap-3">
+              <h2 className="text-base font-bold text-[var(--foreground)]">Killers</h2>
               <input
                 type="search"
-                placeholder="Search killers…"
+                placeholder="Search…"
                 value={killerSearch}
                 onChange={(e) => setKillerSearch(e.target.value)}
-                className="w-full max-w-xs rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--foreground)] placeholder:text-[var(--muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+                className="h-9 max-w-[200px] rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 text-sm text-[var(--foreground)] placeholder:text-[var(--muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
                 aria-label="Search killers"
               />
-            </div>
-          <div className="space-y-6">
-            {TIER_ORDER.map((tier) => {
-              const killers = killersByTier.get(tier) ?? [];
-              if (killers.length === 0) return null;
-              const tierColor = TIER_COLORS[tier];
-              return (
-                <div
-                  key={tier}
-                  className="rounded-xl border-2 p-4"
-                  style={{ borderColor: tierColor, backgroundColor: `${tierColor}12` }}
+              <div className="flex rounded-lg border border-[var(--border)] p-0.5">
+                <button
+                  type="button"
+                  onClick={() => setKillerFilter("all")}
+                  className={`rounded-md px-3 py-1.5 text-xs font-medium ${killerFilter === "all" ? "bg-[var(--accent)] text-white" : "text-[var(--muted)] hover:bg-[var(--surface-hover)]"}`}
                 >
-                  <h3
-                    className="mb-3 text-center text-sm font-bold uppercase tracking-wider"
-                    style={{ color: tierColor }}
+                  All
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setKillerFilter("unlocked")}
+                  className={`rounded-md px-3 py-1.5 text-xs font-medium ${killerFilter === "unlocked" ? "bg-[var(--success)] text-white" : "text-[var(--muted)] hover:bg-[var(--surface-hover)]"}`}
+                >
+                  Unlocked
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setKillerFilter("locked")}
+                  className={`rounded-md px-3 py-1.5 text-xs font-medium ${killerFilter === "locked" ? "bg-[var(--danger)] text-white" : "text-[var(--muted)] hover:bg-[var(--surface-hover)]"}`}
+                >
+                  Locked
+                </button>
+              </div>
+              <span className="text-sm text-[var(--muted)]">
+                {session.killers.filter((k) => k.status === "Unlocked").length}/{session.killers.length} unlocked
+              </span>
+            </div>
+            <div className="space-y-6">
+              {TIER_ORDER.map((tier) => {
+                const killers = killersByTier.get(tier) ?? [];
+                if (killers.length === 0) return null;
+                const tierColor = TIER_COLORS[tier];
+                return (
+                  <div
+                    key={tier}
+                    className="rounded-xl border-2 p-4 shadow-sm"
+                    style={{ borderColor: tierColor, backgroundColor: `${tierColor}15` }}
                   >
-                    {tier} tier
-                  </h3>
-                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-                    {killers.map((killer) => (
-                      <KillerCard
-                        key={killer.id}
-                        killer={killer}
-                        onSelect={setSelectedKiller}
-                      />
-                    ))}
+                    <h3
+                      className="mb-3 text-center text-sm font-bold uppercase tracking-wider"
+                      style={{ color: tierColor }}
+                    >
+                      {tier} tier
+                    </h3>
+                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+                      {killers.map((killer) => (
+                        <KillerCard
+                          key={killer.id}
+                          killer={killer}
+                          onSelect={setSelectedKiller}
+                        />
+                      ))}
+                    </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
-        </section>
+                );
+              })}
+            </div>
+          </section>
         </div>
 
-        <div className="mt-6 flex min-h-[280px] w-full shrink-0 flex-col lg:mt-0 lg:min-h-0 lg:w-72">
-          <MatchTimeline />
-        </div>
+        {timelineOpen && (
+          <div className="mt-6 shrink-0 lg:mt-0 lg:self-start">
+            <MatchTimeline
+              onToggleCollapse={() => setTimelineOpen(false)}
+              onLogMatch={() => setLogMatchOpen(true)}
+            />
+          </div>
+        )}
       </main>
 
       {selectedKiller && (
@@ -203,17 +213,21 @@ function Dashboard() {
       {settingsOpen && (
         <SettingsModal onClose={() => setSettingsOpen(false)} />
       )}
+      {profileOpen && (
+        <ProfileModal onClose={() => setProfileOpen(false)} />
+      )}
       {logMatchOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4" onClick={() => setLogMatchOpen(false)}>
-          <div className="w-full max-w-md rounded-xl border-2 border-[var(--border)] bg-[var(--surface)] p-4 shadow-xl" onClick={(e) => e.stopPropagation()}>
-            <div className="mb-3 flex items-center justify-between">
+          <div className="w-full max-w-md rounded-2xl border-2 border-[var(--border)] bg-[var(--surface)] p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <div className="mb-4 flex items-center justify-between">
               <h2 className="text-lg font-bold text-[var(--foreground)]">Log match</h2>
-              <button type="button" onClick={() => setLogMatchOpen(false)} className="rounded p-1 text-[var(--muted)] hover:bg-[var(--surface-hover)]">✕</button>
+              <button type="button" onClick={() => setLogMatchOpen(false)} className="rounded-lg p-2 text-[var(--muted)] hover:bg-[var(--surface-hover)]">✕</button>
             </div>
             <LogMatchForm onClose={() => setLogMatchOpen(false)} />
           </div>
         </div>
       )}
+
     </div>
   );
 }

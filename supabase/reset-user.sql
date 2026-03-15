@@ -5,3 +5,4 @@ delete from public.match_history;
 delete from public.user_killers;
 delete from public.user_settings;
 delete from public.user_state;
+delete from public.user_profiles;

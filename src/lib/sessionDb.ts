@@ -97,8 +97,16 @@ async function loadFromNormalizedTables(userId: string): Promise<Session | null>
   }));
   const logEntries: LogEntry[] = (logRes.data ?? []).map((row: Record<string, unknown>) => logEntryFromRow(row));
 
+  // Derive current balance from the latest event so header and timeline never get out of sync
+  const allWithTs = [
+    ...matchHistory.map((m) => ({ ts: new Date(m.timestamp).getTime(), balanceAfter: m.balanceAfter ?? state.token_balance })),
+    ...logEntries.map((e) => ({ ts: new Date(e.timestamp).getTime(), balanceAfter: e.balanceAfter })),
+  ];
+  const latest = allWithTs.length > 0 ? allWithTs.reduce((a, b) => (a.ts >= b.ts ? a : b)) : null;
+  const tokenBalance = latest != null ? latest.balanceAfter : state.token_balance;
+
   const session: Session = {
-    tokenBalance: state.token_balance,
+    tokenBalance,
     killers,
     matchHistory,
     logEntries,

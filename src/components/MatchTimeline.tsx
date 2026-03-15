@@ -149,15 +149,17 @@ function DeadTimelineItem({ entry }: { entry: LogEntry & { kind: "dead"; payload
           </span>
           <span className="text-[10px] text-[var(--muted)]">{shortDate(entry.timestamp)}</span>
         </div>
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-[var(--muted)]">
-          <span>Balance after: {entry.balanceAfter}</span>
-        </div>
       </div>
     </div>
   );
 }
 
-export function MatchTimeline() {
+interface MatchTimelineProps {
+  onToggleCollapse: () => void;
+  onLogMatch: () => void;
+}
+
+export function MatchTimeline({ onToggleCollapse, onLogMatch }: MatchTimelineProps) {
   const { session, deleteMatch, editMatch } = useSession();
   const [editingMatch, setEditingMatch] = useState<MatchRecord | null>(null);
 
@@ -180,11 +182,31 @@ export function MatchTimeline() {
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col rounded-xl border border-[var(--border)] bg-[var(--surface)]">
-      <h3 className="border-b border-[var(--border)] px-3 py-2 text-xs font-semibold uppercase tracking-wider text-[var(--muted)]">
-        Timeline
-      </h3>
-      <div className="flex-1 overflow-y-auto p-2">
+    <div className="flex w-80 shrink-0 flex-col rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-lg">
+      <div className="flex items-center gap-2 border-b border-[var(--border)] px-3 py-2">
+        <button
+          type="button"
+          onClick={onToggleCollapse}
+          className="-ml-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[var(--muted)] hover:bg-[var(--surface-hover)] hover:text-[var(--foreground)]"
+          title="Close timeline"
+          aria-label="Close timeline"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+        </button>
+        <h3 className="min-w-0 flex-1 text-xs font-semibold uppercase tracking-wider text-[var(--muted)]">
+          Timeline
+        </h3>
+        <button
+          type="button"
+          onClick={onLogMatch}
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-[var(--border)] text-[var(--muted)] transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--foreground)]"
+          title="Log match"
+          aria-label="Log match"
+        >
+          +
+        </button>
+      </div>
+      <div className="p-2">
         {entries.length === 0 ? (
           <p className="py-4 text-center text-xs text-[var(--muted)]">No matches yet.</p>
         ) : (
