@@ -32,6 +32,35 @@ export interface MatchRecord {
   killerLockedAfter: boolean;
   /** Gens standing at end of game (0–5). Optional for legacy records. */
   gensStanding?: number;
+  /** Token balance after this match. */
+  balanceAfter?: number;
+}
+
+/** Session log: unlock and dead only. Matches live in matchHistory. */
+export type LogKind = "unlock" | "dead";
+
+export interface LogEntryUnlockPayload {
+  id: string;
+  killerId: string;
+  killerName: string;
+  cost: number;
+}
+
+export interface LogEntryDeadPayload {
+  id: string;
+  killerId: string;
+  killerName: string;
+  matchId?: string;
+}
+
+export type LogEntryPayload = LogEntryUnlockPayload | LogEntryDeadPayload;
+
+export interface LogEntry {
+  id: string;
+  kind: LogKind;
+  timestamp: string;
+  balanceAfter: number;
+  payload: LogEntryPayload;
 }
 
 /** User-editable: token change per kill count (0-4). */
@@ -61,7 +90,7 @@ export interface Settings {
   winByUnlockAll: boolean;
 }
 
-/** Session-level gen stats (persisted in JSON, computed from matchHistory). */
+/** Session-level gen stats (persisted in JSON, computed from match log entries). */
 export interface SessionGenStats {
   matchesWithGens: number;
   totalGensStanding: number;
@@ -72,6 +101,8 @@ export interface Session {
   tokenBalance: number;
   killers: KillerState[];
   matchHistory: MatchRecord[];
+  /** Log for unlock + dead only. Timeline merges matchHistory + logEntries. */
+  logEntries: LogEntry[];
   settings: Settings;
   createdAt: string;
   updatedAt: string;

@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useSession } from "@/context/SessionContext";
-import { locksKiller, getTokensForKills, getTokensForGens } from "@/lib/gameLogic";
+import { locksKiller, getTokensForKills, getTokensForGens, getMatchHistory } from "@/lib/gameLogic";
 import type { Session } from "@/types";
 import { DEFAULT_SETTINGS } from "@/types";
 
@@ -18,8 +18,9 @@ interface LogMatchFormProps {
   onClose?: () => void;
 }
 
-function getInitialKillerId(session: { matchHistory: { killerId: string }[]; killers: { id: string; status: string }[] }): string {
-  const last = session.matchHistory[0];
+function getInitialKillerId(session: Session): string {
+  const matches = getMatchHistory(session);
+  const last = matches[0];
   if (!last) return "";
   const stillUnlocked = session.killers.some((k) => k.id === last.killerId && k.status === "Unlocked");
   return stillUnlocked ? last.killerId : "";

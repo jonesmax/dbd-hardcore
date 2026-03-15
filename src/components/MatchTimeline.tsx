@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useSession } from "@/context/SessionContext";
 import { EditMatchModal } from "@/components/EditMatchModal";
-import type { MatchRecord } from "@/types";
+import type { MatchRecord, LogEntry, LogEntryUnlockPayload, LogEntryDeadPayload } from "@/types";
 import { killerImageSrc } from "@/lib/assetPath";
 
 function shortDate(ts: string): string {
@@ -15,13 +15,18 @@ function shortDate(ts: string): string {
     : d.toLocaleDateString([], { month: "short", day: "numeric" });
 }
 
-interface TimelineItemProps {
+type TimelineItem =
+  | { type: "match"; data: MatchRecord }
+  | { type: "unlock"; entry: LogEntry & { kind: "unlock"; payload: LogEntryUnlockPayload } }
+  | { type: "dead"; entry: LogEntry & { kind: "dead"; payload: LogEntryDeadPayload } };
+
+interface MatchItemProps {
   m: MatchRecord;
   onDelete: (matchId: string) => void;
   onEditClick: (match: MatchRecord) => void;
 }
 
-function TimelineItem({ m, onDelete, onEditClick }: TimelineItemProps) {
+function MatchTimelineItem({ m, onDelete, onEditClick }: MatchItemProps) {
   const [imgError, setImgError] = useState(false);
   const isPositive = m.tokensEarned >= 0;
   const borderColor = isPositive ? "var(--success)" : "var(--danger)";
@@ -70,6 +75,82 @@ function TimelineItem({ m, onDelete, onEditClick }: TimelineItemProps) {
               Dead
             </span>
           )}
+          <span className="text-[var(--muted)]">Balance after: {m.balanceAfter ?? "—"}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function UnlockTimelineItem({ entry }: { entry: LogEntry & { kind: "unlock"; payload: LogEntryUnlockPayload } }) {
+  const [imgError, setImgError] = useState(false);
+  const p = entry.payload;
+  return (
+    <div
+      className="relative flex gap-2 rounded-r-lg border-l-4 border-t border-r border-b border-[var(--border)] bg-[var(--surface)] py-2 pl-2 pr-2"
+      style={{ borderLeftColor: "var(--accent)" }}
+    >
+      <div className="h-10 w-10 shrink-0 overflow-hidden rounded-md bg-[var(--background)]">
+        {imgError ? (
+          <span className="flex h-full w-full items-center justify-center text-sm font-bold text-[var(--muted)]">
+            {p.killerName.charAt(0)}
+          </span>
+        ) : (
+          <img
+            src={killerImageSrc(p.killerId)}
+            alt=""
+            className="h-full w-full object-cover object-top"
+            onError={() => setImgError(true)}
+          />
+        )}
+      </div>
+      <div className="min-w-0 flex-1 flex flex-col gap-0.5">
+        <div className="flex items-center justify-between gap-2">
+          <span className="truncate text-xs font-medium text-[var(--foreground)]" title={p.killerName}>
+            Unlocked {p.killerName}
+          </span>
+          <span className="text-[10px] text-[var(--muted)]">{shortDate(entry.timestamp)}</span>
+        </div>
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-[var(--muted)]">
+          <span>−{p.cost} tokens</span>
+          <span>Balance after: {entry.balanceAfter}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DeadTimelineItem({ entry }: { entry: LogEntry & { kind: "dead"; payload: LogEntryDeadPayload } }) {
+  const [imgError, setImgError] = useState(false);
+  const p = entry.payload;
+  return (
+    <div
+      className="relative flex gap-2 rounded-r-lg border-l-4 border-t border-r border-b border-[var(--border)] bg-[var(--surface)] py-2 pl-2 pr-2"
+      style={{ borderLeftColor: "var(--danger)" }}
+    >
+      <div className="h-10 w-10 shrink-0 overflow-hidden rounded-md bg-[var(--background)]">
+        {imgError ? (
+          <span className="flex h-full w-full items-center justify-center text-sm font-bold text-[var(--muted)]">
+            {p.killerName.charAt(0)}
+          </span>
+        ) : (
+          <img
+            src={killerImageSrc(p.killerId)}
+            alt=""
+            className="h-full w-full object-cover object-top"
+            onError={() => setImgError(true)}
+          />
+        )}
+      </div>
+      <div className="min-w-0 flex-1 flex flex-col gap-0.5">
+        <div className="flex items-center justify-between gap-2">
+          <span className="truncate text-xs font-medium text-[var(--danger)]" title={p.killerName}>
+            {p.killerName} dead
+          </span>
+          <span className="text-[10px] text-[var(--muted)]">{shortDate(entry.timestamp)}</span>
+        </div>
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-[var(--muted)]">
+          <span>Balance after: {entry.balanceAfter}</span>
         </div>
       </div>
     </div>
@@ -79,7 +160,18 @@ function TimelineItem({ m, onDelete, onEditClick }: TimelineItemProps) {
 export function MatchTimeline() {
   const { session, deleteMatch, editMatch } = useSession();
   const [editingMatch, setEditingMatch] = useState<MatchRecord | null>(null);
-  const history = session.matchHistory;
+
+  const entries = useMemo((): TimelineItem[] => {
+    const matchItems: TimelineItem[] = session.matchHistory.map((m) => ({ type: "match" as const, data: m }));
+    const logItems: TimelineItem[] = session.logEntries.map((e) =>
+      e.kind === "unlock"
+        ? { type: "unlock" as const, entry: e }
+        : { type: "dead" as const, entry: e }
+    );
+    const ts = (x: TimelineItem) =>
+      x.type === "match" ? new Date(x.data.timestamp).getTime() : new Date(x.entry.timestamp).getTime();
+    return [...matchItems, ...logItems].sort((a, b) => ts(b) - ts(a));
+  }, [session.matchHistory, session.logEntries]);
 
   function handleSaveEdit(updates: { killerId?: string; kills?: number; gensStanding?: number }) {
     if (!editingMatch) return;
@@ -93,13 +185,26 @@ export function MatchTimeline() {
         Timeline
       </h3>
       <div className="flex-1 overflow-y-auto p-2">
-        {history.length === 0 ? (
+        {entries.length === 0 ? (
           <p className="py-4 text-center text-xs text-[var(--muted)]">No matches yet.</p>
         ) : (
           <div className="flex flex-col gap-2">
-            {history.map((m) => (
-              <TimelineItem key={m.id} m={m} onDelete={deleteMatch} onEditClick={setEditingMatch} />
-            ))}
+            {entries.map((item) => {
+              if (item.type === "match") {
+                return (
+                  <MatchTimelineItem
+                    key={item.data.id}
+                    m={item.data}
+                    onDelete={deleteMatch}
+                    onEditClick={setEditingMatch}
+                  />
+                );
+              }
+              if (item.type === "unlock") {
+                return <UnlockTimelineItem key={item.entry.id} entry={item.entry} />;
+              }
+              return <DeadTimelineItem key={item.entry.id} entry={item.entry} />;
+            })}
           </div>
         )}
       </div>

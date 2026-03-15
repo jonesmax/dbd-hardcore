@@ -4,7 +4,7 @@ import React, { createContext, useCallback, useContext, useEffect, useRef, useSt
 import type { Session } from "@/types";
 import { DEFAULT_SETTINGS } from "@/types";
 import { getInitialSession, exportSessionToJson, importSessionFromJson, resetProgress as resetProgressSession, resetSettings as resetSettingsSession } from "@/lib/session";
-import { processMatch, unlockKiller, revertMatch, deleteMatch as deleteMatchSession, editMatch as editMatchSession, getSessionGenStats } from "@/lib/gameLogic";
+import { processMatch, unlockKiller, revertMatch, deleteMatch as deleteMatchSession, editMatch as editMatchSession, getSessionGenStats, getMatchHistory } from "@/lib/gameLogic";
 import { loadSession, saveSession } from "@/lib/sessionDb";
 import { useAuth } from "@/context/AuthContext";
 
@@ -70,8 +70,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
   const undoLastMatch = useCallback((): boolean => {
     setSessionState((prev) => {
-      if (prev.matchHistory.length === 0) return prev;
-      return revertMatch(prev, prev.matchHistory[0]);
+      const matches = getMatchHistory(prev);
+      if (matches.length === 0) return prev;
+      return revertMatch(prev, matches[0]);
     });
     return true;
   }, []);

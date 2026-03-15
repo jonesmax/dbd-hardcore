@@ -1,4 +1,4 @@
-import type { Session, KillerState, MatchRecord, Settings, TierBaseCosts, Tier } from "@/types";
+import type { Session, KillerState, MatchRecord, Settings, TierBaseCosts, Tier, LogEntry } from "@/types";
 import { KILLER_DEFINITIONS } from "@/data/killers";
 import { INITIAL_TOKEN_BALANCE, DEFAULT_SETTINGS } from "@/types";
 import { getSessionGenStats } from "@/lib/gameLogic";
@@ -70,6 +70,7 @@ export function getInitialSession(): Session {
     tokenBalance: INITIAL_TOKEN_BALANCE,
     killers: buildInitialKillers(settings),
     matchHistory: [],
+    logEntries: [],
     settings,
     createdAt: now,
     updatedAt: now,
@@ -83,6 +84,7 @@ export function getEmptyRun(settings: Settings): Omit<Session, "createdAt" | "up
     tokenBalance: INITIAL_TOKEN_BALANCE,
     killers: buildInitialKillers(settings),
     matchHistory: [],
+    logEntries: [],
     settings,
   };
 }
@@ -105,6 +107,7 @@ export function resetProgress(session: Session): Session {
     tokenBalance: INITIAL_TOKEN_BALANCE,
     killers: buildInitialKillers(session.settings),
     matchHistory: [],
+    logEntries: [],
     updatedAt: now,
     wonAt: null,
   };
@@ -162,18 +165,20 @@ function normalizeImportedSession(parsed: Session): Session {
     };
   });
   const matchHistory = Array.isArray(parsed.matchHistory)
-    ? (parsed.matchHistory as MatchRecord[]).filter(
-        (m) =>
-          m &&
-          typeof m.kills === "number" &&
-          typeof m.tokensEarned === "number" &&
-          m.timestamp
+    ? parsed.matchHistory.filter(
+        (m) => m && typeof m.kills === "number" && typeof m.tokensEarned === "number" && m.timestamp
+      )
+    : [];
+  const logEntries = Array.isArray(parsed.logEntries)
+    ? parsed.logEntries.filter(
+        (e) => e && e.id && (e.kind === "unlock" || e.kind === "dead") && e.timestamp && typeof e.balanceAfter === "number" && e.payload
       )
     : [];
   const normalized: Session = {
     tokenBalance: typeof parsed.tokenBalance === "number" ? parsed.tokenBalance : INITIAL_TOKEN_BALANCE,
     killers: killers.sort((a, b) => a.name.localeCompare(b.name)),
     matchHistory,
+    logEntries,
     settings,
     createdAt: typeof parsed.createdAt === "string" ? parsed.createdAt : new Date().toISOString(),
     updatedAt: new Date().toISOString(),

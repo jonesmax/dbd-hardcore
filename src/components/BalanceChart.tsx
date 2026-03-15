@@ -2,14 +2,17 @@
 
 import { useMemo } from "react";
 import { useSession } from "@/context/SessionContext";
+import { getMatchHistory } from "@/lib/gameLogic";
+import type { Session } from "@/types";
 
 /** Balance after each match (chronological). First point = balance before any match. */
-function getBalancePoints(session: { tokenBalance: number; matchHistory: { tokensEarned: number; timestamp: string }[] }): number[] {
-  const totalEarned = session.matchHistory.reduce((s, m) => s + m.tokensEarned, 0);
+function getBalancePoints(session: Session): number[] {
+  const matchHistory = getMatchHistory(session);
+  const totalEarned = matchHistory.reduce((s, m) => s + m.tokensEarned, 0);
   const initial = session.tokenBalance - totalEarned;
   const points = [initial];
   let running = initial;
-  const chronological = [...session.matchHistory].sort(
+  const chronological = [...matchHistory].sort(
     (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
   );
   for (const m of chronological) {

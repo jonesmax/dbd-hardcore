@@ -1,16 +1,17 @@
 "use client";
 
 import { useSession } from "@/context/SessionContext";
-import { getSessionGenStats } from "@/lib/gameLogic";
+import { getSessionGenStats, getMatchHistory } from "@/lib/gameLogic";
 
 export function StatsPanel() {
   const { session } = useSession();
+  const matchHistory = getMatchHistory(session);
 
-  const totalMatches = session.matchHistory.length;
-  const totalKills = session.matchHistory.reduce((s, m) => s + m.kills, 0);
-  const wins = session.matchHistory.filter((m) => m.result === "Win").length;
-  const neutrals = session.matchHistory.filter((m) => m.result === "Neutral").length;
-  const losses = session.matchHistory.filter((m) => m.result === "Loss").length;
+  const totalMatches = matchHistory.length;
+  const totalKills = matchHistory.reduce((s, m) => s + m.kills, 0);
+  const wins = matchHistory.filter((m) => m.result === "Win").length;
+  const neutrals = matchHistory.filter((m) => m.result === "Neutral").length;
+  const losses = matchHistory.filter((m) => m.result === "Loss").length;
   const unlockedCount = session.killers.filter((k) => k.status === "Unlocked").length;
   const genStats = getSessionGenStats(session);
 

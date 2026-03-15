@@ -14,6 +14,7 @@ import { WinTracker } from "@/components/WinTracker";
 import { SettingsModal } from "@/components/SettingsModal";
 import { AuthForm } from "@/components/AuthForm";
 import { hasSupabase } from "@/lib/supabase";
+import { getMatchHistory } from "@/lib/gameLogic";
 import type { KillerState } from "@/types";
 import { TIER_ORDER, DEFAULT_SETTINGS, TIER_COLORS } from "@/types";
 
@@ -23,17 +24,25 @@ function Dashboard() {
   const [selectedKiller, setSelectedKiller] = useState<KillerState | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [logMatchOpen, setLogMatchOpen] = useState(false);
+  const [killerSearch, setKillerSearch] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const settings = session.settings ?? DEFAULT_SETTINGS;
 
   const killersByTier = useMemo(() => {
+    const q = killerSearch.trim().toLowerCase();
+    const filtered = q
+      ? session.killers.filter(
+          (k) =>
+            k.name.toLowerCase().includes(q) || k.id.toLowerCase().includes(q)
+        )
+      : session.killers;
     const map = new Map<string, KillerState[]>();
     for (const tier of TIER_ORDER) {
-      map.set(tier, session.killers.filter((k) => k.tier === tier));
+      map.set(tier, filtered.filter((k) => k.tier === tier));
     }
     return map;
-  }, [session.killers]);
+  }, [session.killers, killerSearch]);
 
   function handleExport() {
     const blob = new Blob([exportJson()], { type: "application/json" });
@@ -86,7 +95,7 @@ function Dashboard() {
             <button
               type="button"
               onClick={() => undoLastMatch()}
-              disabled={session.matchHistory.length === 0}
+              disabled={getMatchHistory(session).length === 0}
               className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm text-[var(--muted)] hover:bg-[var(--surface-hover)] disabled:opacity-50 disabled:cursor-not-allowed"
               title="Undo last match"
             >
@@ -140,6 +149,16 @@ function Dashboard() {
 
           <section>
             <h2 className="mb-4 text-lg font-bold text-[var(--foreground)]">Killers</h2>
+            <div className="mb-3">
+              <input
+                type="search"
+                placeholder="Search killers…"
+                value={killerSearch}
+                onChange={(e) => setKillerSearch(e.target.value)}
+                className="w-full max-w-xs rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--foreground)] placeholder:text-[var(--muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+                aria-label="Search killers"
+              />
+            </div>
           <div className="space-y-6">
             {TIER_ORDER.map((tier) => {
               const killers = killersByTier.get(tier) ?? [];
