@@ -38,7 +38,7 @@ export function processMatch(
   killerId: string,
   kills: number,
   gensStanding: number = 5,
-  options?: { isReplay?: boolean }
+  options?: { isReplay?: boolean; existingRecord?: MatchRecord }
 ): { session: Session; record: MatchRecord } | null {
   const killer = session.killers.find((k) => k.id === killerId);
   if (!killer) return null;
