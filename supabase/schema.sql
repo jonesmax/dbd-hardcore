@@ -1,18 +1,29 @@
--- Run this in Supabase SQL Editor (Dashboard → SQL Editor) to create the sessions table.
--- One row stores the full app session as JSON.
+-- Run in Supabase SQL Editor. Uses Auth (Dashboard → Authentication → enable Email provider).
+-- One row per user; RLS ensures users only access their own session.
 
-create table if not exists public.sessions (
-  id text primary key default 'default',
+drop table if exists public.sessions;
+
+create table public.sessions (
+  user_id uuid primary key references auth.users(id) on delete cascade,
   data jsonb not null default '{}',
   updated_at timestamptz default now()
 );
 
--- Allow anonymous read/write for static site (no auth). Restrict with RLS if you add auth later.
 alter table public.sessions enable row level security;
 
-create policy "Allow anon read and write"
-  on public.sessions
-  for all
-  to anon
-  using (true)
-  with check (true);
+-- Users can only read/update their own row (insert on first save, then update).
+create policy "Users read own session"
+  on public.sessions for select
+  to authenticated
+  using (auth.uid() = user_id);
+
+create policy "Users insert own session"
+  on public.sessions for insert
+  to authenticated
+  with check (auth.uid() = user_id);
+
+create policy "Users update own session"
+  on public.sessions for update
+  to authenticated
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);

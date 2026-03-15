@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useMemo } from "react";
+import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { SessionProvider, useSession } from "@/context/SessionContext";
 import { KillerCard } from "@/components/KillerCard";
 import { KillerModal } from "@/components/KillerModal";
@@ -11,10 +12,13 @@ import { MatchTimeline } from "@/components/MatchTimeline";
 import { BalanceChart } from "@/components/BalanceChart";
 import { WinTracker } from "@/components/WinTracker";
 import { SettingsModal } from "@/components/SettingsModal";
+import { AuthForm } from "@/components/AuthForm";
+import { hasSupabase } from "@/lib/supabase";
 import type { KillerState } from "@/types";
 import { TIER_ORDER, DEFAULT_SETTINGS, TIER_COLORS } from "@/types";
 
 function Dashboard() {
+  const { user, signOut } = useAuth();
   const { session, exportJson, importJson, undoLastMatch } = useSession();
   const [selectedKiller, setSelectedKiller] = useState<KillerState | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -65,6 +69,12 @@ function Dashboard() {
             DBD Hardcore Killer Economy
           </h1>
           <div className="flex items-center gap-2">
+            {user && (
+              <>
+                <span className="text-sm text-[var(--muted)] truncate max-w-[120px]" title={user.email}>{user.email}</span>
+                <button type="button" onClick={() => signOut()} className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-sm text-[var(--muted)] hover:bg-[var(--surface-hover)]">Sign out</button>
+              </>
+            )}
             <button
               type="button"
               onClick={() => setLogMatchOpen(true)}
@@ -189,10 +199,30 @@ function Dashboard() {
   );
 }
 
-export default function Home() {
+function App() {
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[var(--background)]">
+        <p className="text-[var(--muted)]">Loading…</p>
+      </div>
+    );
+  }
+  if (hasSupabase && !user) {
+    return <AuthForm />;
+  }
   return (
     <SessionProvider>
       <Dashboard />
     </SessionProvider>
+  );
+}
+
+export default function Home() {
+  return (
+    <AuthProvider>
+      <App />
+    </AuthProvider>
   );
 }
