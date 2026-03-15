@@ -48,3 +48,10 @@ Push to `master` or `main`. The workflow (`.github/workflows/deploy-pages.yml`) 
 Your site will be at **https://jonesmax.github.io/dbd-hardcore/** (replace with your username/repo).
 
 To redeploy, push again or run **Actions → Deploy to GitHub Pages → Run workflow**.
+
+### maxwelljones.ca/dbd-hardcore (subpath on your domain)
+
+The build uses `BASE_PATH=/dbd-hardcore`, so it works at **https://maxwelljones.ca/dbd-hardcore/**.
+
+- **To use maxwelljones.ca/dbd-hardcore:** GitHub Pages can't serve a subpath of a domain used by another site. GitHub Pages serves from the root of the site, so you’d get `maxwelljones.ca` (not `/dbd-hardcore`). To keep the app at `maxwelljones.ca/dbd-hardcore/`, host the `out/` contents on your own server under that path, or use a reverse proxy that serves the GitHub Pages site at that subpath.
+- **Your own server:** Upload the `out/` folder so it’s served at `https://maxwelljones.ca/dbd-hardcore/` (the `out/` contents are the root of that URL). No code changes needed; the workflow already builds with the right base path.

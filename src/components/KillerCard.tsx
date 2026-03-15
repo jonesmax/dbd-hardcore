@@ -4,10 +4,7 @@ import { useState, useEffect } from "react";
 import type { KillerState, Tier } from "@/types";
 import { useSession } from "@/context/SessionContext";
 import { getKillerStats } from "@/lib/gameLogic";
-
-function killerImageSrc(killerId: string): string {
-  return `/killers/${encodeURIComponent(killerId)}.webp`;
-}
+import { killerImageSrc } from "@/lib/assetPath";
 
 const TIER_CLASS: Record<Tier, string> = {
   "S+": "tier-group-s-plus",

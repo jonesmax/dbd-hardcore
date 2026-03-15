@@ -4,10 +4,7 @@ import { useState } from "react";
 import { useSession } from "@/context/SessionContext";
 import { EditMatchModal } from "@/components/EditMatchModal";
 import type { MatchRecord } from "@/types";
-
-function killerImageSrc(killerId: string): string {
-  return `/killers/${encodeURIComponent(killerId)}.webp`;
-}
+import { killerImageSrc } from "@/lib/assetPath";
 
 function shortDate(ts: string): string {
   const d = new Date(ts);
