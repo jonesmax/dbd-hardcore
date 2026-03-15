@@ -163,10 +163,10 @@ export function MatchTimeline() {
 
   const entries = useMemo((): TimelineItem[] => {
     const matchItems: TimelineItem[] = session.matchHistory.map((m) => ({ type: "match" as const, data: m }));
-    const logItems: TimelineItem[] = session.logEntries.map((e) =>
+    const logItems: TimelineItem[] = session.logEntries.map((e): TimelineItem =>
       e.kind === "unlock"
-        ? { type: "unlock" as const, entry: e }
-        : { type: "dead" as const, entry: e }
+        ? { type: "unlock", entry: e as LogEntry & { kind: "unlock"; payload: LogEntryUnlockPayload } }
+        : { type: "dead", entry: e as LogEntry & { kind: "dead"; payload: LogEntryDeadPayload } }
     );
     const ts = (x: TimelineItem) =>
       x.type === "match" ? new Date(x.data.timestamp).getTime() : new Date(x.entry.timestamp).getTime();
