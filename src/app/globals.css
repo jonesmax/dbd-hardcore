@@ -1,8 +1,33 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #0f1419;
+  --foreground: #e6edf3;
+  --surface: #161b22;
+  --surface-hover: #21262d;
+  --border: #30363d;
+  --muted: #8b949e;
+  --accent: #58a6ff;
+  --accent-strong: #388bfd;
+  --success: #3fb950;
+  --success-bg: rgba(63, 185, 80, 0.15);
+  --danger: #f85149;
+  --danger-bg: rgba(248, 81, 73, 0.15);
+  --warn: #d29922;
+  --warn-bg: rgba(210, 153, 34, 0.15);
+  --locked-border: #6e7681;
+  --locked-bg: #21262d;
+  --locked-overlay: rgba(0, 0, 0, 0.28);
+  --unlocked-border: #3fb950;
+  --unlocked-bg: #161b22;
+  --unlocked-glow: rgba(63, 185, 80, 0.25);
+  /* Tier group colors */
+  --tier-s-plus: #ffd700;
+  --tier-s: #8957e5;
+  --tier-a: #cd7f32;
+  --tier-b: #4a90d9;
+  --tier-c: #8b7355;
+  --tier-special: #a371f7;
 }
 
 @theme inline {
@@ -12,15 +37,65 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans), system-ui, sans-serif;
 }
+
+.tier-s-plus { color: #ffd700; }
+.tier-s { color: #8957e5; }
+.tier-a { color: #cd7f32; }
+.tier-b { color: #4a90d9; }
+.tier-c { color: #8b7355; }
+.tier-special { color: #a371f7; }
+
+/* Locked: full B&W image, muted border, red corner badge, stronger locked styling */
+.killer-card-locked {
+  background: var(--locked-bg);
+  border-color: var(--locked-border) !important;
+  box-shadow:
+    0 0 0 2px rgba(110, 118, 129, 0.4),
+    inset 0 0 60px rgba(0, 0, 0, 0.35),
+    0 4px 12px rgba(0, 0, 0, 0.3);
+  opacity: 0.95;
+}
+/* B&W effect on the image itself so it always applies */
+.killer-img-locked {
+  filter: grayscale(100%) contrast(1.15) brightness(0.75);
+}
+.killer-card-locked .killer-card-image-wrap::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, transparent 0%, rgba(0, 0, 0, 0.5) 100%);
+  pointer-events: none;
+}
+.killer-card-locked .locked-badge {
+  box-shadow: 0 2px 10px rgba(248, 81, 73, 0.5), 0 0 0 1px rgba(0, 0, 0, 0.3);
+}
+
+/* Unlocked: full color, green glow and border accent */
+.killer-card-unlocked {
+  background: var(--unlocked-bg);
+  border-color: var(--success) !important;
+  box-shadow: 0 0 0 1px rgba(63, 185, 80, 0.4), 0 0 16px var(--unlocked-glow);
+  animation: unlocked-glow 3s ease-in-out infinite;
+}
+.killer-card-unlocked .killer-card-image-wrap {
+  filter: none;
+}
+.killer-card-unlocked:hover {
+  box-shadow: 0 0 0 1px rgba(63, 185, 80, 0.6), 0 0 24px var(--unlocked-glow);
+  animation: none;
+}
+@keyframes unlocked-glow {
+  0%, 100% { box-shadow: 0 0 0 1px rgba(63, 185, 80, 0.4), 0 0 16px var(--unlocked-glow); }
+  50% { box-shadow: 0 0 0 1px rgba(63, 185, 80, 0.5), 0 0 20px var(--unlocked-glow); }
+}
+.tier-group-s-plus { border-color: var(--tier-s-plus) !important; }
+.tier-group-s { border-color: var(--tier-s) !important; }
+.tier-group-a { border-color: var(--tier-a) !important; }
+.tier-group-b { border-color: var(--tier-b) !important; }
+.tier-group-c { border-color: var(--tier-c) !important; }
+.tier-group-special { border-color: var(--tier-special) !important; }
