@@ -1,10 +1,7 @@
 import type { Session, KillerState, MatchRecord, Settings, LogEntry, LogEntryUnlockPayload, LogEntryDeadPayload, Tier } from "@/types";
 import { supabase, hasSupabase } from "@/lib/supabase";
-import { importSessionFromJson } from "@/lib/session";
 import { getSessionGenStats } from "@/lib/gameLogic";
 import { DEFAULT_SETTINGS } from "@/types";
-
-const SESSION_KEY = "dbd-hardcore-session";
 
 function settingsFromRow(r: {
   token_by_kills: Record<string, number>;
@@ -270,19 +267,10 @@ async function saveToNormalizedTables(userId: string, session: Session, options?
   }
 }
 
-/** Load session for the given user (normalized tables only when Supabase; else localStorage). */
+/** Load session from Supabase only. All data is fetched from DB; no local storage. */
 export async function loadSession(userId: string | null): Promise<Session | null> {
   if (hasSupabase && supabase && userId) {
     return loadFromNormalizedTables(userId);
-  }
-  if (!hasSupabase && typeof window !== "undefined") {
-    try {
-      const raw = localStorage.getItem(SESSION_KEY);
-      if (!raw) return null;
-      return importSessionFromJson(raw);
-    } catch {
-      return null;
-    }
   }
   return null;
 }
@@ -292,18 +280,9 @@ export interface SaveSessionOptions {
   clearProgress?: boolean;
 }
 
-/** Save session for the given user (Supabase normalized tables or localStorage when no Supabase/user). */
+/** Save session to Supabase only. All data is persisted to DB; no local storage. */
 export async function saveSession(userId: string | null, session: Session, options?: SaveSessionOptions): Promise<void> {
+  if (!hasSupabase || !supabase || !userId) return;
   const toSave = { ...session, genStats: getSessionGenStats(session) };
-  if (hasSupabase && supabase && userId) {
-    await saveToNormalizedTables(userId, toSave, options);
-    return;
-  }
-  if (!hasSupabase && typeof window !== "undefined") {
-    try {
-      localStorage.setItem(SESSION_KEY, JSON.stringify(toSave));
-    } catch {
-      // ignore
-    }
-  }
+  await saveToNormalizedTables(userId, toSave, options);
 }

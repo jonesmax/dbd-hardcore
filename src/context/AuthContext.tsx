@@ -8,6 +8,8 @@ import { loadUsername, saveUsername } from "@/lib/profileDb";
 interface AuthContextValue {
   user: User | null;
   profile: { username: string | null };
+  /** True after first profile load attempt for current user (so username is not stale). */
+  profileReady: boolean;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signUp: (email: string, password: string) => Promise<{ error: Error | null }>;
@@ -21,12 +23,15 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<{ username: string | null }>({ username: null });
+  const [profileReady, setProfileReady] = useState(false);
   const [loading, setLoading] = useState(!!hasSupabase);
 
   const loadProfile = useCallback(async () => {
     if (!user?.id) return;
+    setProfileReady(false);
     const username = await loadUsername(user.id);
     setProfile({ username });
+    setProfileReady(true);
   }, [user?.id]);
 
   useEffect(() => {
@@ -35,8 +40,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return;
     }
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-      setProfile({ username: null });
+      const nextUser = session?.user ?? null;
+      setUser(nextUser);
+      if (!nextUser) {
+        setProfile({ username: null });
+        setProfileReady(false);
+      }
       setLoading(false);
     });
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -48,6 +57,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (user?.id) loadProfile();
+    else setProfileReady(true);
   }, [user?.id, loadProfile]);
 
   const signIn = useCallback(async (email: string, password: string) => {
@@ -73,7 +83,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return result;
   }, [user?.id, loadProfile]);
 
-  const value: AuthContextValue = { user, profile, loading, signIn, signUp, signOut, loadProfile, updateUsername };
+  const value: AuthContextValue = { user, profile, profileReady, loading, signIn, signUp, signOut, loadProfile, updateUsername };
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 

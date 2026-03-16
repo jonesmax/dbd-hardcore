@@ -21,8 +21,8 @@ import { TIER_ORDER, TIER_COLORS } from "@/types";
 type KillerFilter = "all" | "unlocked" | "locked";
 
 function Dashboard() {
-  const { user, profile, signOut } = useAuth();
-  const { session } = useSession();
+  const { user, profile, profileReady, signOut } = useAuth();
+  const { session, sessionReady } = useSession();
   const [selectedKiller, setSelectedKiller] = useState<KillerState | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -50,6 +50,14 @@ function Dashboard() {
   }, [session.killers, killerSearch, killerFilter]);
 
   const displayName = profile.username || user?.email?.split("@")[0] || "Player";
+
+  if (!sessionReady || !profileReady) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[var(--background)]">
+        <p className="text-[var(--muted)]">Loading…</p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[var(--background)]">
