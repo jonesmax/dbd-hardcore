@@ -7,11 +7,54 @@ export function getMatchHistory(session: Session): MatchRecord[] {
 }
 
 export function checkWin(session: Session): boolean {
-  const { winTargetBalance, winByUnlockAll } = session.settings;
-  const unlockedCount = session.killers.filter((k) => k.status === "Unlocked").length;
-  const balanceWin = winTargetBalance > 0 && session.tokenBalance >= winTargetBalance;
-  const unlockAllWin = winByUnlockAll && unlockedCount === session.killers.length && session.killers.length > 0;
-  return balanceWin || unlockAllWin;
+  return getWinChecklist(session).every((item) => item.completed);
+}
+
+export interface WinChecklistItem {
+  id: "tokens" | "unlock_all" | "win_with_all";
+  label: string;
+  completed: boolean;
+  progress: string;
+}
+
+export function getWinChecklist(session: Session): WinChecklistItem[] {
+  const target = session.settings.winTargetBalance;
+  const tokensCompleted = target > 0 && session.tokenBalance >= target;
+  const unlockedIds = new Set(
+    session.logEntries
+      .filter((e) => e.kind === "unlock")
+      .map((e) => (e.payload as { killerId?: string }).killerId)
+      .filter((id): id is string => typeof id === "string")
+  );
+  const unlockedCount = unlockedIds.size;
+  const totalKillers = session.killers.length;
+  const unlockCompleted = totalKillers > 0 && unlockedCount === totalKillers;
+
+  const winIds = new Set(
+    session.matchHistory.filter((m) => m.result === "Win").map((m) => m.killerId)
+  );
+  const winWithAllCompleted = totalKillers > 0 && winIds.size === totalKillers;
+
+  return [
+    {
+      id: "tokens",
+      label: "Earn target token balance",
+      completed: tokensCompleted,
+      progress: `${session.tokenBalance}/${target}`,
+    },
+    {
+      id: "unlock_all",
+      label: "Unlock every killer",
+      completed: unlockCompleted,
+      progress: `${unlockedCount}/${totalKillers}`,
+    },
+    {
+      id: "win_with_all",
+      label: "Win at least one match with every killer",
+      completed: winWithAllCompleted,
+      progress: `${winIds.size}/${totalKillers}`,
+    },
+  ];
 }
 
 export function getResult(kills: number): MatchResult {
@@ -59,7 +102,7 @@ export function processMatch(
       totalKills: k.totalKills + kills,
       lossCount: k.lossCount + (shouldLock ? 1 : 0),
       status: shouldLock ? "Dead" : "Unlocked",
-      currentCost: shouldLock ? k.currentCost + 2 : k.currentCost,
+      currentCost: shouldLock ? k.currentCost * 2 : k.currentCost,
     };
   });
 
@@ -150,7 +193,7 @@ export function revertMatch(session: Session, record: MatchRecord): Session {
       totalKills: k.totalKills - record.kills,
       lossCount: k.lossCount - (record.killerLockedAfter ? 1 : 0),
       status: record.killerLockedAfter ? "Unlocked" : k.status,
-      currentCost: record.killerLockedAfter ? k.currentCost - 2 : k.currentCost,
+      currentCost: record.killerLockedAfter ? Math.max(k.baseCost, Math.floor(k.currentCost / 2)) : k.currentCost,
     };
   });
 

@@ -137,8 +137,8 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
           </section>
 
           <section>
-            <h3 className="mb-2 text-sm font-semibold text-[var(--foreground)]">Win condition</h3>
-            <p className="mb-2 text-xs text-[var(--muted)]">You win when any enabled condition is met.</p>
+            <h3 className="mb-2 text-sm font-semibold text-[var(--foreground)]">Win checklist</h3>
+            <p className="mb-2 text-xs text-[var(--muted)]">All checklist items must be completed to win.</p>
             <div className="mb-2 flex flex-wrap items-center gap-2">
               <label className="text-sm text-[var(--muted)]">Reach</label>
               <input
@@ -148,17 +148,9 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
                 onChange={(e) => setForm((f) => ({ ...f, winTargetBalance: Math.max(0, parseInt(e.target.value, 10) || 0) }))}
                 className="w-20 rounded-lg border border-[var(--border)] bg-[var(--background)] px-2 py-1.5 text-sm text-[var(--foreground)]"
               />
-              <span className="text-sm text-[var(--muted)]">tokens (0 = disabled)</span>
+              <span className="text-sm text-[var(--muted)]">tokens target</span>
             </div>
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={form.winByUnlockAll}
-                onChange={(e) => setForm((f) => ({ ...f, winByUnlockAll: e.target.checked }))}
-                className="rounded"
-              />
-              <span className="text-sm">Also win by unlocking all killers</span>
-            </label>
+            <p className="text-xs text-[var(--muted)]">Also required: unlock every killer and win at least one match with every killer.</p>
           </section>
 
           <section>

@@ -27,6 +27,7 @@ function Dashboard() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [logMatchOpen, setLogMatchOpen] = useState(false);
+  const [checklistOpen, setChecklistOpen] = useState(false);
   const [killerSearch, setKillerSearch] = useState("");
   const [killerFilter, setKillerFilter] = useState<KillerFilter>("all");
   const [timelineOpen, setTimelineOpen] = useState(true);
@@ -68,7 +69,7 @@ function Dashboard() {
           </h1>
 
           <div className="flex min-w-0 flex-1 items-center justify-end">
-            <div className="flex h-10 items-stretch overflow-hidden rounded-xl border border-[var(--border)] bg-gradient-to-r from-[var(--surface)] to-[var(--surface-hover)]/50 shadow-inner ring-1 ring-black/5">
+            <div className="flex h-10 items-stretch rounded-xl border border-[var(--border)] bg-gradient-to-r from-[var(--surface)] to-[var(--surface-hover)]/50 shadow-inner ring-1 ring-black/5">
               <div className="flex h-full items-center gap-1 border-r border-[var(--border)] px-2.5">
                 <span className="max-w-[100px] truncate text-sm font-medium text-[var(--foreground)]" title={user?.email ?? ""}>
                   {displayName}
@@ -82,7 +83,7 @@ function Dashboard() {
                   <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
                 </button>
               </div>
-              <BalanceDisplay compact />
+              <BalanceDisplay compact checklistOpen={checklistOpen} onToggleChecklist={() => setChecklistOpen((v) => !v)} />
               <div className="flex h-full items-center border-l border-[var(--border)]">
                 <button
                   type="button"

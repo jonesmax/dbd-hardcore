@@ -147,7 +147,7 @@ export const DEFAULT_SETTINGS: Settings = {
   lockThreshold: 2,
   tierBaseCosts: { ...DEFAULT_TIER_BASE_COSTS },
   killerTierOverrides: {},
-  winTargetBalance: 50,
+  winTargetBalance: 500,
   winByUnlockAll: true,
 };
 

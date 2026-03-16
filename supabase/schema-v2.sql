@@ -22,7 +22,7 @@ create table if not exists public.user_settings (
   lock_threshold smallint not null default 2 check (lock_threshold in (1, 2)),
   tier_base_costs jsonb not null default '{"S+":12,"S":10,"A":8,"B":6,"C":5,"Special/New":8}',
   killer_tier_overrides jsonb not null default '{}',
-  win_target_balance int not null default 50,
+  win_target_balance int not null default 500,
   win_by_unlock_all boolean not null default true
 );
 

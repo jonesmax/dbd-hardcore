@@ -51,7 +51,7 @@ function settingsFromRow(r: {
       "Special/New": r.tier_base_costs?.["Special/New"] ?? DEFAULT_SETTINGS.tierBaseCosts["Special/New"],
     },
     killerTierOverrides: (r.killer_tier_overrides && typeof r.killer_tier_overrides === "object" ? r.killer_tier_overrides : {}) as Settings["killerTierOverrides"],
-    winTargetBalance: typeof r.win_target_balance === "number" ? r.win_target_balance : 50,
+    winTargetBalance: typeof r.win_target_balance === "number" ? r.win_target_balance : DEFAULT_SETTINGS.winTargetBalance,
     winByUnlockAll: typeof r.win_by_unlock_all === "boolean" ? r.win_by_unlock_all : true,
   };
 }

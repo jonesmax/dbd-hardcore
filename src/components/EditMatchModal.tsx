@@ -8,9 +8,10 @@ interface EditMatchModalProps {
   match: MatchRecord;
   onClose: () => void;
   onSave: (updates: { killerId?: string; kills?: number; gensStanding?: number }) => void;
+  onDelete: (matchId: string) => void;
 }
 
-export function EditMatchModal({ match, onClose, onSave }: EditMatchModalProps) {
+export function EditMatchModal({ match, onClose, onSave, onDelete }: EditMatchModalProps) {
   const { session } = useSession();
   const [killerId, setKillerId] = useState(match.killerId);
   const [kills, setKills] = useState(match.kills);
@@ -108,6 +109,15 @@ export function EditMatchModal({ match, onClose, onSave }: EditMatchModalProps) 
               className="rounded-lg bg-[var(--success)] px-4 py-2 font-bold text-black hover:opacity-90"
             >
               Save
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (confirm("Delete this match?")) onDelete(match.id);
+              }}
+              className="rounded-lg border border-[var(--danger)] px-4 py-2 text-sm font-medium text-[var(--danger)] hover:bg-[var(--danger-bg)]"
+            >
+              Delete
             </button>
             <button
               type="button"

@@ -22,11 +22,10 @@ type TimelineItem =
 
 interface MatchItemProps {
   m: MatchRecord;
-  onDelete: (matchId: string) => void;
   onEditClick: (match: MatchRecord) => void;
 }
 
-function MatchTimelineItem({ m, onDelete, onEditClick }: MatchItemProps) {
+function MatchTimelineItem({ m, onEditClick }: MatchItemProps) {
   const [imgError, setImgError] = useState(false);
   const isPositive = m.tokensEarned >= 0;
   const borderColor = isPositive ? "var(--success)" : "var(--danger)";
@@ -58,8 +57,14 @@ function MatchTimelineItem({ m, onDelete, onEditClick }: MatchItemProps) {
           </span>
           <div className="flex items-center gap-1 shrink-0">
             <span className="text-[10px] text-[var(--muted)]">{shortDate(m.timestamp)}</span>
-            <button type="button" onClick={() => onEditClick(m)} className="rounded p-0.5 text-[var(--muted)] hover:bg-[var(--surface-hover)]" title="Edit match">✎</button>
-            <button type="button" onClick={() => confirm("Delete this match?") && onDelete(m.id)} className="rounded p-0.5 text-[var(--danger)] hover:bg-[var(--danger-bg)]" title="Delete match">✕</button>
+            <button
+              type="button"
+              onClick={() => onEditClick(m)}
+              className="rounded p-0.5 text-[var(--muted)] opacity-50 hover:bg-[var(--surface-hover)] hover:opacity-100"
+              title="Edit match"
+            >
+              ✎
+            </button>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs">
@@ -125,8 +130,12 @@ function DeadTimelineItem({ entry }: { entry: LogEntry & { kind: "dead"; payload
   const p = entry.payload;
   return (
     <div
-      className="relative flex gap-2 rounded-r-lg border-l-4 border-t border-r border-b border-[var(--border)] bg-[var(--surface)] py-2 pl-2 pr-2"
-      style={{ borderLeftColor: "var(--danger)" }}
+      className="relative flex gap-2 rounded-r-lg border-l-4 border-t border-r border-b border-[var(--border)] py-2 pl-2 pr-2 backdrop-blur-sm"
+      style={{
+        borderLeftColor: "var(--danger)",
+        background: "linear-gradient(135deg, rgba(220,38,38,0.22), rgba(220,38,38,0.08))",
+        boxShadow: "inset 0 0 0 1px rgba(220,38,38,0.2)",
+      }}
     >
       <div className="h-10 w-10 shrink-0 overflow-hidden rounded-md bg-[var(--background)]">
         {imgError ? (
@@ -217,7 +226,6 @@ export function MatchTimeline({ onToggleCollapse, onLogMatch }: MatchTimelinePro
                   <MatchTimelineItem
                     key={item.data.id}
                     m={item.data}
-                    onDelete={deleteMatch}
                     onEditClick={setEditingMatch}
                   />
                 );
@@ -235,6 +243,10 @@ export function MatchTimeline({ onToggleCollapse, onLogMatch }: MatchTimelinePro
           match={editingMatch}
           onClose={() => setEditingMatch(null)}
           onSave={handleSaveEdit}
+          onDelete={(matchId) => {
+            deleteMatch(matchId);
+            setEditingMatch(null);
+          }}
         />
       )}
     </div>
