@@ -1,4 +1,4 @@
-import type { Session, KillerState, MatchRecord, Settings, LogEntry, Tier } from "@/types";
+import type { Session, KillerState, MatchRecord, Settings, LogEntry, LogEntryUnlockPayload, LogEntryDeadPayload, Tier } from "@/types";
 import { supabase, hasSupabase } from "@/lib/supabase";
 import { importSessionFromJson } from "@/lib/session";
 import { getSessionGenStats } from "@/lib/gameLogic";
@@ -46,15 +46,47 @@ function settingsFromRow(r: {
   };
 }
 
-function logEntryFromRow(row: Record<string, unknown>): LogEntry {
-  const payload = row.payload as Record<string, unknown>;
-  return {
-    id: row.id as string,
-    kind: row.kind as LogEntry["kind"],
-    timestamp: (row.timestamp as string).replace("Z", "Z"),
-    balanceAfter: row.balance_after as number,
-    payload: payload as unknown as LogEntry["payload"],
-  };
+function logEntryFromRow(row: Record<string, unknown>): LogEntry | null {
+  try {
+    const payload = row.payload as Record<string, unknown> | null | undefined;
+    const ts = row.timestamp;
+    const id = row.id;
+    const balanceAfter = row.balance_after;
+    if (id == null || ts == null || balanceAfter == null || payload == null || typeof payload !== "object") return null;
+    const kind = row.kind as LogEntry["kind"];
+    if (kind !== "unlock" && kind !== "dead") return null;
+    return {
+      id: String(id),
+      kind,
+      timestamp: String(ts).replace("Z", "Z"),
+      balanceAfter: Number(balanceAfter),
+      payload: payload as unknown as LogEntry["payload"],
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** Apply session_log (unlock/dead) in time order so killer status matches the timeline. */
+function applyLogEntriesToKillers(killers: KillerState[], logEntries: LogEntry[]): KillerState[] {
+  if (!Array.isArray(logEntries) || logEntries.length === 0) return killers;
+  try {
+    const byId = new Map(killers.map((k) => [k.id, { ...k }]));
+    const sorted = [...logEntries].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+    for (const e of sorted) {
+      const payload = e?.payload as unknown as Record<string, unknown> | undefined;
+      if (!payload || typeof payload !== "object") continue;
+      const killerId = (payload.killerId ?? payload.killer_id) as string | undefined;
+      if (!killerId) continue;
+      const k = byId.get(killerId);
+      if (!k) continue;
+      if (e.kind === "unlock") k.status = "Unlocked";
+      else if (e.kind === "dead") k.status = "Dead";
+    }
+    return killers.map((k) => byId.get(k.id) ?? k);
+  } catch {
+    return killers;
+  }
 }
 
 /** Load session from normalized tables (user_state, user_settings, user_killers, match_history, session_log). */
@@ -69,8 +101,8 @@ async function loadFromNormalizedTables(userId: string): Promise<Session | null>
     supabase.from("session_log").select("*").eq("user_id", userId).order("timestamp", { ascending: false }),
   ]);
 
-  if (stateRes.error || !stateRes.data) return null;
-  const state = stateRes.data as { token_balance: number; created_at: string; updated_at: string; won_at: string | null };
+  if (stateRes.error) return null;
+
   const settings = settingsRes.data ? settingsFromRow(settingsRes.data as Parameters<typeof settingsFromRow>[0]) : DEFAULT_SETTINGS;
   const killers: KillerState[] = (killersRes.data ?? []).map((k: Record<string, unknown>) => ({
     id: k.killer_id as string,
@@ -83,46 +115,78 @@ async function loadFromNormalizedTables(userId: string): Promise<Session | null>
     totalKills: (k.total_kills as number) ?? 0,
     lossCount: (k.loss_count as number) ?? 0,
   }));
-  const matchHistory: MatchRecord[] = (matchesRes.data ?? []).map((m: Record<string, unknown>) => ({
-    id: m.id as string,
-    killerId: m.killer_id as string,
-    killerName: m.killer_name as string,
-    kills: m.kills as number,
-    result: m.result as MatchRecord["result"],
-    tokensEarned: m.tokens_earned as number,
-    timestamp: (m.timestamp as string).replace("Z", "Z"),
-    killerLockedAfter: m.killer_locked_after as boolean,
-    gensStanding: m.gens_standing != null ? (m.gens_standing as number) : undefined,
-    balanceAfter: m.balance_after != null ? (m.balance_after as number) : undefined,
-  }));
-  const logEntries: LogEntry[] = (logRes.data ?? []).map((row: Record<string, unknown>) => logEntryFromRow(row));
+
+  const matchHistory: MatchRecord[] = [];
+  for (const m of matchesRes.data ?? []) {
+    try {
+      const row = m as Record<string, unknown>;
+      const ts = row.timestamp;
+      if (row.id == null || row.killer_id == null || ts == null) continue;
+      matchHistory.push({
+        id: row.id as string,
+        killerId: row.killer_id as string,
+        killerName: (row.killer_name as string) ?? "",
+        kills: Number(row.kills ?? 0),
+        result: (row.result as MatchRecord["result"]) ?? "Neutral",
+        tokensEarned: Number(row.tokens_earned ?? 0),
+        timestamp: String(ts).replace("Z", "Z"),
+        killerLockedAfter: Boolean(row.killer_locked_after),
+        gensStanding: row.gens_standing != null ? Number(row.gens_standing) : undefined,
+        balanceAfter: row.balance_after != null ? Number(row.balance_after) : undefined,
+      });
+    } catch {
+      // skip bad row
+    }
+  }
+
+  const logEntries: LogEntry[] = [];
+  for (const row of logRes.data ?? []) {
+    const e = logEntryFromRow(row as Record<string, unknown>);
+    if (e) logEntries.push(e);
+  }
+
+  const state = stateRes.data as { token_balance: number; created_at: string; updated_at: string; won_at: string | null } | null;
+  const now = new Date().toISOString();
+  const createdAt = state?.created_at ?? (matchHistory.length > 0 || logEntries.length > 0
+    ? (([...matchHistory, ...logEntries] as { timestamp: string }[])
+        .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())[0]?.timestamp ?? now)
+    : now);
+  const updatedAt = state?.updated_at ?? (matchHistory.length > 0 || logEntries.length > 0
+    ? (([...matchHistory, ...logEntries] as { timestamp: string }[])
+        .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0]?.timestamp ?? now)
+    : now);
+  const fallbackBalance = state?.token_balance ?? 0;
+
+  // Apply session_log (unlock/dead) to killer status so it matches the timeline
+  const killersWithStatus = applyLogEntriesToKillers(killers, logEntries);
 
   // Derive current balance from the latest event so header and timeline never get out of sync
   const allWithTs = [
-    ...matchHistory.map((m) => ({ ts: new Date(m.timestamp).getTime(), balanceAfter: m.balanceAfter ?? state.token_balance })),
+    ...matchHistory.map((m) => ({ ts: new Date(m.timestamp).getTime(), balanceAfter: m.balanceAfter ?? fallbackBalance })),
     ...logEntries.map((e) => ({ ts: new Date(e.timestamp).getTime(), balanceAfter: e.balanceAfter })),
   ];
   const latest = allWithTs.length > 0 ? allWithTs.reduce((a, b) => (a.ts >= b.ts ? a : b)) : null;
-  const tokenBalance = latest != null ? latest.balanceAfter : state.token_balance;
+  const tokenBalance = latest != null ? latest.balanceAfter : fallbackBalance;
 
   const session: Session = {
     tokenBalance,
-    killers,
+    killers: killersWithStatus,
     matchHistory,
     logEntries,
     settings,
-    createdAt: state.created_at,
-    updatedAt: state.updated_at,
-    wonAt: state.won_at ?? undefined,
+    createdAt,
+    updatedAt,
+    wonAt: state?.won_at ?? undefined,
   };
   session.genStats = getSessionGenStats(session);
   return session;
 }
 
-/** Save session to normalized tables. */
-async function saveToNormalizedTables(userId: string, session: Session): Promise<void> {
+/** Save session to normalized tables. Never deletes progress unless clearProgress is true (e.g. user reset). */
+async function saveToNormalizedTables(userId: string, session: Session, options?: { clearProgress?: boolean }): Promise<void> {
   if (!supabase) return;
   const now = new Date().toISOString();
+  const clearProgress = options?.clearProgress === true;
 
   await supabase.from("user_state").upsert(
     {
@@ -148,55 +212,61 @@ async function saveToNormalizedTables(userId: string, session: Session): Promise
     { onConflict: "user_id" }
   );
 
-  await supabase.from("user_killers").delete().eq("user_id", userId);
-  if (session.killers.length > 0) {
-    await supabase.from("user_killers").insert(
-      session.killers.map((k) => ({
-        user_id: userId,
-        killer_id: k.id,
-        name: k.name,
-        tier: k.tier,
-        base_cost: k.baseCost,
-        current_cost: k.currentCost,
-        status: k.status,
-        matches_played: k.matchesPlayed,
-        total_kills: k.totalKills,
-        loss_count: k.lossCount,
-      }))
-    );
-  }
+  const hasKillers = session.killers.length > 0;
+  const hasHistory = session.matchHistory.length > 0 || session.logEntries.length > 0;
+  const mayReplace = clearProgress || hasHistory;
 
-  await supabase.from("match_history").delete().eq("user_id", userId);
-  if (session.matchHistory.length > 0) {
-    await supabase.from("match_history").insert(
-      session.matchHistory.map((m) => ({
-        id: m.id,
-        user_id: userId,
-        killer_id: m.killerId,
-        killer_name: m.killerName,
-        kills: m.kills,
-        result: m.result,
-        tokens_earned: m.tokensEarned,
-        gens_standing: m.gensStanding ?? null,
-        killer_locked_after: m.killerLockedAfter,
-        timestamp: m.timestamp,
-        balance_after: m.balanceAfter ?? session.tokenBalance,
-      }))
-    );
-  }
+  if (mayReplace) {
+    await supabase.from("user_killers").delete().eq("user_id", userId);
+    if (session.killers.length > 0) {
+      await supabase.from("user_killers").insert(
+        session.killers.map((k) => ({
+          user_id: userId,
+          killer_id: k.id,
+          name: k.name,
+          tier: k.tier,
+          base_cost: k.baseCost,
+          current_cost: k.currentCost,
+          status: k.status,
+          matches_played: k.matchesPlayed,
+          total_kills: k.totalKills,
+          loss_count: k.lossCount,
+        }))
+      );
+    }
 
-  await supabase.from("session_log").delete().eq("user_id", userId);
-  if (session.logEntries.length > 0) {
-    await supabase.from("session_log").insert(
-      session.logEntries.map((e) => ({
-        id: e.id,
-        user_id: userId,
-        kind: e.kind,
-        payload: e.payload as unknown as Record<string, unknown>,
-        timestamp: e.timestamp,
-        balance_after: e.balanceAfter,
-      }))
-    );
+    await supabase.from("match_history").delete().eq("user_id", userId);
+    if (session.matchHistory.length > 0) {
+      await supabase.from("match_history").insert(
+        session.matchHistory.map((m) => ({
+          id: m.id,
+          user_id: userId,
+          killer_id: m.killerId,
+          killer_name: m.killerName,
+          kills: m.kills,
+          result: m.result,
+          tokens_earned: m.tokensEarned,
+          gens_standing: m.gensStanding ?? null,
+          killer_locked_after: m.killerLockedAfter,
+          timestamp: m.timestamp,
+          balance_after: m.balanceAfter ?? session.tokenBalance,
+        }))
+      );
+    }
+
+    await supabase.from("session_log").delete().eq("user_id", userId);
+    if (session.logEntries.length > 0) {
+      await supabase.from("session_log").insert(
+        session.logEntries.map((e) => ({
+          id: e.id,
+          user_id: userId,
+          kind: e.kind,
+          payload: e.payload as unknown as Record<string, unknown>,
+          timestamp: e.timestamp,
+          balance_after: e.balanceAfter,
+        }))
+      );
+    }
   }
 }
 
@@ -217,11 +287,16 @@ export async function loadSession(userId: string | null): Promise<Session | null
   return null;
 }
 
+export interface SaveSessionOptions {
+  /** When true, allow deleting all progress (e.g. user clicked Reset). Default false = never delete progress. */
+  clearProgress?: boolean;
+}
+
 /** Save session for the given user (Supabase normalized tables or localStorage when no Supabase/user). */
-export async function saveSession(userId: string | null, session: Session): Promise<void> {
+export async function saveSession(userId: string | null, session: Session, options?: SaveSessionOptions): Promise<void> {
   const toSave = { ...session, genStats: getSessionGenStats(session) };
   if (hasSupabase && supabase && userId) {
-    await saveToNormalizedTables(userId, toSave);
+    await saveToNormalizedTables(userId, toSave, options);
     return;
   }
   if (!hasSupabase && typeof window !== "undefined") {

@@ -28,18 +28,25 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const userId = user?.id ?? null;
   const [session, setSessionState] = useState<Session>(getInitialSession);
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** Only save after we've loaded for this user; prevents overwriting DB with empty initial session. */
+  const loadedUserIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
+    loadedUserIdRef.current = null;
     loadSession(userId).then((loaded) => {
       if (cancelled) return;
+      loadedUserIdRef.current = userId;
       const withSettings = loaded ? (loaded.settings ? loaded : { ...loaded, settings: DEFAULT_SETTINGS }) : null;
       setSessionState(withSettings ? ensureSessionComplete(withSettings) : getInitialSession());
-    }).catch(() => {});
+    }).catch(() => {
+      if (!cancelled) loadedUserIdRef.current = userId;
+    });
     return () => { cancelled = true; };
   }, [userId]);
 
   useEffect(() => {
+    if (userId && loadedUserIdRef.current !== userId) return;
     saveTimeoutRef.current && clearTimeout(saveTimeoutRef.current);
     saveTimeoutRef.current = setTimeout(() => {
       saveTimeoutRef.current = null;
@@ -95,13 +102,13 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const reset = useCallback(() => {
     const initial = getInitialSession();
     setSessionState(initial);
-    saveSession(userId, initial).catch(() => {});
+    saveSession(userId, initial, { clearProgress: true }).catch(() => {});
   }, [userId]);
 
   const resetProgress = useCallback(() => {
     setSessionState((prev) => {
       const next = resetProgressSession(prev);
-      saveSession(userId, next).catch(() => {});
+      saveSession(userId, next, { clearProgress: true }).catch(() => {});
       return next;
     });
   }, [userId]);
