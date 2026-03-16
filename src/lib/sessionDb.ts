@@ -3,6 +3,19 @@ import { supabase, hasSupabase } from "@/lib/supabase";
 import { getSessionGenStats } from "@/lib/gameLogic";
 import { DEFAULT_SETTINGS } from "@/types";
 
+const saveQueueByUser = new Map<string, Promise<void>>();
+
+function enqueueSaveForUser(userId: string, work: () => Promise<void>): Promise<void> {
+  const prev = saveQueueByUser.get(userId) ?? Promise.resolve();
+  const next = prev.catch(() => undefined).then(work);
+  saveQueueByUser.set(userId, next);
+  return next.finally(() => {
+    if (saveQueueByUser.get(userId) === next) {
+      saveQueueByUser.delete(userId);
+    }
+  });
+}
+
 function settingsFromRow(r: {
   token_by_kills: Record<string, number>;
   token_by_gens: Record<string, number>;
@@ -209,12 +222,22 @@ async function saveToNormalizedTables(userId: string, session: Session, options?
     { onConflict: "user_id" }
   );
 
-  const hasKillers = session.killers.length > 0;
-  const hasHistory = session.matchHistory.length > 0 || session.logEntries.length > 0;
-  const mayReplace = clearProgress || hasHistory;
-
-  if (mayReplace) {
-    await supabase.from("user_killers").delete().eq("user_id", userId);
+  if (clearProgress) {
+    const { data: oldKillers } = await supabase.from("user_killers").select("killer_id").eq("user_id", userId);
+    const killerIdsToRemove = (oldKillers ?? []).map((r) => r.killer_id);
+    if (killerIdsToRemove.length > 0) {
+      await supabase.from("user_killers").delete().eq("user_id", userId).in("killer_id", killerIdsToRemove);
+    }
+    const { data: oldMatches } = await supabase.from("match_history").select("id").eq("user_id", userId);
+    const matchIdsToRemove = (oldMatches ?? []).map((r) => r.id);
+    if (matchIdsToRemove.length > 0) {
+      await supabase.from("match_history").delete().eq("user_id", userId).in("id", matchIdsToRemove);
+    }
+    const { data: oldLogs } = await supabase.from("session_log").select("id").eq("user_id", userId);
+    const logIdsToRemove = (oldLogs ?? []).map((r) => r.id);
+    if (logIdsToRemove.length > 0) {
+      await supabase.from("session_log").delete().eq("user_id", userId).in("id", logIdsToRemove);
+    }
     if (session.killers.length > 0) {
       await supabase.from("user_killers").insert(
         session.killers.map((k) => ({
@@ -231,38 +254,69 @@ async function saveToNormalizedTables(userId: string, session: Session, options?
         }))
       );
     }
+    return;
+  }
 
-    await supabase.from("match_history").delete().eq("user_id", userId);
-    if (session.matchHistory.length > 0) {
-      await supabase.from("match_history").insert(
-        session.matchHistory.map((m) => ({
-          id: m.id,
-          user_id: userId,
-          killer_id: m.killerId,
-          killer_name: m.killerName,
-          kills: m.kills,
-          result: m.result,
-          tokens_earned: m.tokensEarned,
-          gens_standing: m.gensStanding ?? null,
-          killer_locked_after: m.killerLockedAfter,
-          timestamp: m.timestamp,
-          balance_after: m.balanceAfter ?? session.tokenBalance,
-        }))
-      );
+  if (session.killers.length > 0) {
+    const killerRows = session.killers.map((k) => ({
+      user_id: userId,
+      killer_id: k.id,
+      name: k.name,
+      tier: k.tier,
+      base_cost: k.baseCost,
+      current_cost: k.currentCost,
+      status: k.status,
+      matches_played: k.matchesPlayed,
+      total_kills: k.totalKills,
+      loss_count: k.lossCount,
+    }));
+    await supabase.from("user_killers").upsert(killerRows, { onConflict: "user_id,killer_id" });
+    const sessionKillerIds = new Set(session.killers.map((k) => k.id));
+    const { data: existingKillers } = await supabase.from("user_killers").select("killer_id").eq("user_id", userId);
+    const toDeleteKillers = (existingKillers ?? []).map((r) => r.killer_id).filter((id) => !sessionKillerIds.has(id));
+    if (toDeleteKillers.length > 0) {
+      await supabase.from("user_killers").delete().eq("user_id", userId).in("killer_id", toDeleteKillers);
     }
+  }
 
-    await supabase.from("session_log").delete().eq("user_id", userId);
-    if (session.logEntries.length > 0) {
-      await supabase.from("session_log").insert(
-        session.logEntries.map((e) => ({
-          id: e.id,
-          user_id: userId,
-          kind: e.kind,
-          payload: e.payload as unknown as Record<string, unknown>,
-          timestamp: e.timestamp,
-          balance_after: e.balanceAfter,
-        }))
-      );
+  const matchRows = session.matchHistory.map((m) => ({
+    id: m.id,
+    user_id: userId,
+    killer_id: m.killerId,
+    killer_name: m.killerName,
+    kills: m.kills,
+    result: m.result,
+    tokens_earned: m.tokensEarned,
+    gens_standing: m.gensStanding ?? null,
+    killer_locked_after: m.killerLockedAfter,
+    timestamp: m.timestamp,
+    balance_after: m.balanceAfter ?? session.tokenBalance,
+  }));
+  if (matchRows.length > 0) {
+    await supabase.from("match_history").upsert(matchRows, { onConflict: "id" });
+    const sessionMatchIds = new Set(session.matchHistory.map((m) => m.id));
+    const { data: existingMatches } = await supabase.from("match_history").select("id").eq("user_id", userId);
+    const toDeleteMatches = (existingMatches ?? []).map((r) => r.id).filter((id) => !sessionMatchIds.has(id));
+    if (toDeleteMatches.length > 0) {
+      await supabase.from("match_history").delete().eq("user_id", userId).in("id", toDeleteMatches);
+    }
+  }
+
+  const logRows = session.logEntries.map((e) => ({
+    id: e.id,
+    user_id: userId,
+    kind: e.kind,
+    payload: e.payload as unknown as Record<string, unknown>,
+    timestamp: e.timestamp,
+    balance_after: e.balanceAfter,
+  }));
+  if (logRows.length > 0) {
+    await supabase.from("session_log").upsert(logRows, { onConflict: "id" });
+    const sessionLogIds = new Set(session.logEntries.map((e) => e.id));
+    const { data: existingLogs } = await supabase.from("session_log").select("id").eq("user_id", userId);
+    const toDeleteLogs = (existingLogs ?? []).map((r) => r.id).filter((id) => !sessionLogIds.has(id));
+    if (toDeleteLogs.length > 0) {
+      await supabase.from("session_log").delete().eq("user_id", userId).in("id", toDeleteLogs);
     }
   }
 }
@@ -284,5 +338,5 @@ export interface SaveSessionOptions {
 export async function saveSession(userId: string | null, session: Session, options?: SaveSessionOptions): Promise<void> {
   if (!hasSupabase || !supabase || !userId) return;
   const toSave = { ...session, genStats: getSessionGenStats(session) };
-  await saveToNormalizedTables(userId, toSave, options);
+  await enqueueSaveForUser(userId, () => saveToNormalizedTables(userId, toSave, options));
 }

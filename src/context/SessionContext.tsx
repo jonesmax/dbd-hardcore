@@ -30,7 +30,6 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const userId = user?.id ?? null;
   const [session, setSessionState] = useState<Session>(getInitialSession);
   const [sessionReady, setSessionReady] = useState(false);
-  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const loadedUserIdRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -52,25 +51,18 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     return () => { cancelled = true; };
   }, [userId]);
 
-  useEffect(() => {
-    if (userId && loadedUserIdRef.current !== userId) return;
-    saveTimeoutRef.current && clearTimeout(saveTimeoutRef.current);
-    saveTimeoutRef.current = setTimeout(() => {
-      saveTimeoutRef.current = null;
-      saveSession(userId, session).catch(() => {});
-    }, 300);
-    return () => {
-      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
-    };
-  }, [userId, session]);
-
-  const setSession = useCallback((s: Session | ((prev: Session) => Session)) => {
-    setSessionState(s);
-  }, []);
-
   const persist = useCallback((next: Session, opts?: { clearProgress?: boolean }) => {
+    if (userId && loadedUserIdRef.current !== userId) return;
     saveSession(userId, next, opts).catch(() => {});
   }, [userId]);
+
+  const setSession = useCallback((s: Session | ((prev: Session) => Session)) => {
+    setSessionState((prev) => {
+      const next = typeof s === "function" ? (s as (p: Session) => Session)(prev) : s;
+      if (next !== prev) persist(next);
+      return next;
+    });
+  }, [persist]);
 
   const playMatch = useCallback((killerId: string, kills: number, gensStanding: number = 5): boolean => {
     setSessionState((prev) => {
